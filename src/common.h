@@ -16,7 +16,7 @@
 // Debug options, enable them using -D in CFLAGS
 // #define DEBUG_BACKTRACE  1
 // #define DEBUG_REPAINT    1
-// #define DEBUG_EVENTS     1
+#define DEBUG_EVENTS     1
 // #define DEBUG_RESTACK    1
 // #define DEBUG_WINTYPE    1
 // #define DEBUG_CLIENTWIN  1
@@ -27,12 +27,12 @@
 // #define DEBUG_FRAME      1
 // #define DEBUG_LEADER     1
 // #define DEBUG_C2         1
-// #define DEBUG_GLX        1
+#define DEBUG_GLX        1
 // #define DEBUG_GLX_GLSL   1
 // #define DEBUG_GLX_ERR    1
 // #define DEBUG_GLX_MARK   1
 // #define DEBUG_GLX_PAINTREG 1
-// #define MONITOR_REPAINT  1
+#define MONITOR_REPAINT  1
 
 // Whether to enable PCRE regular expression support in blacklists, enabled
 // by default
@@ -239,8 +239,16 @@
 #define WFLAG_POS_CHANGE    0x0002
 // Window opacity / dim state changed
 #define WFLAG_OPCT_CHANGE   0x0004
+// Window transform is changed
+#define WFLAG_TRANSFORM_CHANGE   0x0008
 
 // === Types ===
+
+typedef XTransform xtransform_t;
+
+typedef struct transform_t {
+  double data[3][3];
+} transform_t;
 
 typedef uint32_t opacity_t;
 typedef long time_ms_t;
@@ -1015,6 +1023,8 @@ typedef struct _session_t {
   bool xrfilter_convolution_exists;
 
   // === Atoms ===
+  /// Atom of property <code>_NET_WM_TRANSFORM</code>.
+  Atom atom_transform;
   /// Atom of property <code>_NET_WM_OPACITY</code>.
   Atom atom_opacity;
   /// Atom of <code>_NET_FRAME_EXTENTS</code>.
@@ -1157,6 +1167,9 @@ typedef struct _win {
   const c2_lptr_t *cache_pblst;
   const c2_lptr_t *cache_uipblst;
 
+  // Window transform
+  transform_t transform;
+  
   // Opacity-related members
   /// Current window opacity.
   opacity_t opacity;
@@ -2207,7 +2220,7 @@ glx_dim_dst(session_t *ps, int dx, int dy, int width, int height, float z,
     GLfloat factor, XserverRegion reg_tgt, const reg_data_t *pcache_reg);
 
 bool
-glx_render_(session_t *ps, const glx_texture_t *ptex,
+glx_render_(session_t *ps, const win *w, const glx_texture_t *ptex,
     int x, int y, int dx, int dy, int width, int height, int z,
     double opacity, bool argb, bool neg,
     XserverRegion reg_tgt, const reg_data_t *pcache_reg
@@ -2218,12 +2231,12 @@ glx_render_(session_t *ps, const glx_texture_t *ptex,
 
 #ifdef CONFIG_VSYNC_OPENGL_GLSL
 #define \
-   glx_render(ps, ptex, x, y, dx, dy, width, height, z, opacity, argb, neg, reg_tgt, pcache_reg, pprogram) \
-  glx_render_(ps, ptex, x, y, dx, dy, width, height, z, opacity, argb, neg, reg_tgt, pcache_reg, pprogram)
+   glx_render(ps, win, ptex, x, y, dx, dy, width, height, z, opacity, argb, neg, reg_tgt, pcache_reg, pprogram) \
+  glx_render_(ps, win, ptex, x, y, dx, dy, width, height, z, opacity, argb, neg, reg_tgt, pcache_reg, pprogram)
 #else
 #define \
-   glx_render(ps, ptex, x, y, dx, dy, width, height, z, opacity, argb, neg, reg_tgt, pcache_reg, pprogram) \
-  glx_render_(ps, ptex, x, y, dx, dy, width, height, z, opacity, argb, neg, reg_tgt, pcache_reg)
+   glx_render(ps, win, ptex, x, y, dx, dy, width, height, z, opacity, argb, neg, reg_tgt, pcache_reg, pprogram) \
+  glx_render_(ps, win, ptex, x, y, dx, dy, width, height, z, opacity, argb, neg, reg_tgt, pcache_reg)
 #endif
 
 void

@@ -688,7 +688,7 @@ static win *
 paint_preprocess(session_t *ps, win *list);
 
 static void
-render_(session_t *ps, int x, int y, int dx, int dy, int wid, int hei,
+render_(session_t *ps, const win *w, int x, int y, int dx, int dy, int wid, int hei,
     double opacity, bool argb, bool neg,
     Picture pict, glx_texture_t *ptex,
     XserverRegion reg_paint, const reg_data_t *pcache_reg
@@ -699,12 +699,12 @@ render_(session_t *ps, int x, int y, int dx, int dy, int wid, int hei,
 
 #ifdef CONFIG_VSYNC_OPENGL_GLSL
 #define \
-   render(ps, x, y, dx, dy, wid, hei, opacity, argb, neg, pict, ptex, reg_paint, pcache_reg, pprogram) \
-  render_(ps, x, y, dx, dy, wid, hei, opacity, argb, neg, pict, ptex, reg_paint, pcache_reg, pprogram)
+   render(ps, w, x, y, dx, dy, wid, hei, opacity, argb, neg, pict, ptex, reg_paint, pcache_reg, pprogram) \
+  render_(ps, w, x, y, dx, dy, wid, hei, opacity, argb, neg, pict, ptex, reg_paint, pcache_reg, pprogram)
 #else
 #define \
-   render(ps, x, y, dx, dy, wid, hei, opacity, argb, neg, pict, ptex, reg_paint, pcache_reg, pprogram) \
-  render_(ps, x, y, dx, dy, wid, hei, opacity, argb, neg, pict, ptex, reg_paint, pcache_reg)
+   render(ps, w, x, y, dx, dy, wid, hei, opacity, argb, neg, pict, ptex, reg_paint, pcache_reg, pprogram) \
+  render_(ps, w, x, y, dx, dy, wid, hei, opacity, argb, neg, pict, ptex, reg_paint, pcache_reg)
 #endif
 
 static inline void
@@ -716,7 +716,7 @@ win_render(session_t *ps, win *w, int x, int y, int wid, int hei,
   const bool argb = (w && (WMODE_ARGB == w->mode || ps->o.force_win_blend));
   const bool neg = (w && w->invert_color);
 
-  render(ps, x, y, dx, dy, wid, hei, opacity, argb, neg,
+  render(ps, w, x, y, dx, dy, wid, hei, opacity, argb, neg,
       pict, (w ? w->paint.ptex: ps->root_tile_paint.ptex),
       reg_paint, pcache_reg, (w ? &ps->o.glx_prog_win: NULL));
 }
@@ -733,6 +733,8 @@ set_tgt_clip(session_t *ps, XserverRegion reg, const reg_data_t *pcache_reg) {
       glx_set_clip(ps, reg, pcache_reg);
       break;
 #endif
+    default:
+      abort();
   }
 }
 
@@ -885,8 +887,10 @@ win_on_wtype_change(session_t *ps, win *w);
 static void
 win_on_factor_change(session_t *ps, win *w);
 
+#if 0
 static void
 win_upd_run(session_t *ps, win *w, win_upd_t *pupd);
+#endif /* 0 */
 
 static void
 calc_win_size(session_t *ps, win *w);

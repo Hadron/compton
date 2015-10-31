@@ -1148,6 +1148,19 @@ paint_preprocess(session_t *ps, win *list) {
         || w->paint_excluded)
       to_paint = false;
 
+    if (WFLAG_TRANSFORM_CHANGE & w->flags) {
+      XConfigureEvent ce = {
+	.window = w->id,
+	.x = w->a.x + 1,
+	.y = w->a.y,
+	.width = w->a.width,
+	.height = w->a.height,
+	.border_width = w->a.border_width,
+	.override_redirect = w->a.override_redirect
+      };
+      configure_win(ps, &ce);
+    }
+
     // to_paint will never change afterward
 
     // Determine mode as early as possible
@@ -1316,7 +1329,7 @@ win_paint_shadow(session_t *ps, win *w,
     return;
   }
 
-  render(ps, 0, 0, w->a.x + w->shadow_dx, w->a.y + w->shadow_dy,
+  render(ps, NULL, 0, 0, w->a.x + w->shadow_dx, w->a.y + w->shadow_dy,
       w->shadow_width, w->shadow_height, w->shadow_opacity, true, false,
       w->shadow_paint.pict, w->shadow_paint.ptex, reg_paint, pcache_reg, NULL);
 }
@@ -1512,7 +1525,7 @@ win_blur_background(session_t *ps, win *w, Picture tgt_buffer,
 }
 
 static void
-render_(session_t *ps, int x, int y, int dx, int dy, int wid, int hei,
+render_(session_t *ps, const win *w, int x, int y, int dx, int dy, int wid, int hei,
     double opacity, bool argb, bool neg,
     Picture pict, glx_texture_t *ptex,
     XserverRegion reg_paint, const reg_data_t *pcache_reg
@@ -1534,7 +1547,7 @@ render_(session_t *ps, int x, int y, int dx, int dy, int wid, int hei,
       }
 #ifdef CONFIG_VSYNC_OPENGL
     case BKEND_GLX:
-      glx_render(ps, ptex, x, y, dx, dy, wid, hei,
+      glx_render(ps, w, ptex, x, y, dx, dy, wid, hei,
           ps->psglx->z, opacity, argb, neg, reg_paint, pcache_reg, pprogram);
       ps->psglx->z += 1;
       break;
@@ -1722,6 +1735,8 @@ win_paint_win(session_t *ps, win *w, XserverRegion reg_paint,
             reg_paint, pcache_reg);
         break;
 #endif
+      default:
+	abort();
     }
   }
 
@@ -1817,6 +1832,8 @@ paint_all(session_t *ps, XserverRegion region, XserverRegion region_real, win *t
       glClear(GL_COLOR_BUFFER_BIT);
       glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
       break;
+    default:
+      abort();
   }
 #endif
 
@@ -1986,6 +2003,14 @@ paint_all(session_t *ps, XserverRegion region, XserverRegion region_real, win *t
       }
       // No-DBE painting mode
       else if (ps->tgt_buffer.pict != ps->tgt_picture) {
+	double theta = 0;
+	double scale = 0.5;
+	XTransform transform = {{
+	    { XDoubleToFixed(scale * cos(theta)), XDoubleToFixed(-scale * sin(theta)), XDoubleToFixed(0.0) },
+	    { XDoubleToFixed(scale * sin(theta)), XDoubleToFixed(scale * cos(theta)), XDoubleToFixed(0.0) },
+	    { XDoubleToFixed(0.0), XDoubleToFixed(0.0), XDoubleToFixed(1.0) }
+	  }};
+	XRenderSetPictureTransform(ps->dpy, ps->tgt_buffer.pict, &transform);
         XRenderComposite(
           ps->dpy, PictOpSrc, ps->tgt_buffer.pict, None,
           ps->tgt_picture, 0, 0, 0, 0,
@@ -2012,7 +2037,7 @@ paint_all(session_t *ps, XserverRegion region, XserverRegion region_real, win *t
       else
         glFlush();
       glXWaitX();
-      glx_render(ps, ps->tgt_buffer.ptex, 0, 0, 0, 0,
+      glx_render(ps, NULL, ps->tgt_buffer.ptex, 0, 0, 0, 0,
           ps->root_width, ps->root_height, 0, 1.0, false, false,
           region_real, NULL, NULL);
       // No break here!
@@ -2306,6 +2331,50 @@ unmap_win(session_t *ps, win *w) {
     cdbus_ev_win_unmapped(ps, w);
   }
 #endif
+}
+
+static transform_t from_xtransform(xtransform_t t) {
+  return (transform_t) { .data = {
+      { XFixedToDouble(t.matrix[0][0]),
+	XFixedToDouble(t.matrix[0][1]),
+	XFixedToDouble(t.matrix[0][2]) },
+      { XFixedToDouble(t.matrix[1][0]),
+	XFixedToDouble(t.matrix[1][1]),
+	XFixedToDouble(t.matrix[1][2]) },
+      { XFixedToDouble(t.matrix[2][0]),
+	XFixedToDouble(t.matrix[2][1]),
+	XFixedToDouble(t.matrix[2][2]) }
+    }
+  };
+}
+
+#if 0
+static transform_t
+wid_get_transform_scale(double theta, double scale) {
+  return (transform_t) { .data = {
+      { scale * cos(theta), -scale * sin(theta), 0.0 },
+      { scale * sin(theta), scale * cos(theta), 0.0 },
+      { 0.0, 0.0, 1.0 }
+    }}; 
+}
+#endif /* 0 */
+
+static transform_t
+wid_get_transform_prop(session_t *ps, Window wid) {
+  winprop_t prop = wid_get_prop(ps, wid, ps->atom_transform, 9L, XA_CARDINAL, 32);
+  long *f = prop.data.p32;
+  printf("fetching 0x%lx\n", wid);
+  if (f == NULL) {
+    return (transform_t) {{
+	{ 1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, 1.0 }
+      }};
+  }
+  xtransform_t t = { .matrix = {
+	{ f[0], f[1], f[2] },
+	{ f[3], f[4], f[5] },
+	{ f[6], f[7], f[8] }
+      }};
+  return from_xtransform(t);
 }
 
 static opacity_t
@@ -2664,6 +2733,7 @@ win_on_factor_change(session_t *ps, win *w) {
         ps->o.unredir_if_possible_blacklist, &w->cache_uipblst);
 }
 
+#if 0
 /**
  * Process needed window updates.
  */
@@ -2686,14 +2756,16 @@ win_upd_run(session_t *ps, win *w, win_upd_t *pupd) {
     pupd->focus = false;
   }
 }
+#endif /* 0 */
 
 /**
  * Update cache data in struct _win that depends on window size.
  */
 static void
 calc_win_size(session_t *ps, win *w) {
-  w->widthb = w->a.width + w->a.border_width * 2;
-  w->heightb = w->a.height + w->a.border_width * 2;
+  double xscale = w->transform.data[0][0];
+  w->widthb = (w->a.width / xscale) + w->a.border_width * 2;
+  w->heightb = (w->a.height / xscale) + w->a.border_width * 2;
   calc_shadow_geometry(ps, w);
   w->flags |= WFLAG_SIZE_CHANGE;
 }
@@ -2838,7 +2910,7 @@ win_recheck_client(session_t *ps, win *w) {
 
 static bool
 add_win(session_t *ps, Window id, Window prev) {
-  const static win win_def = {
+  static win win_def = {
     .next = NULL,
     .prev_trans = NULL,
 
@@ -2952,6 +3024,7 @@ add_win(session_t *ps, Window id, Window prev) {
   new->id = id;
 
   set_ignore_next(ps);
+
   if (!XGetWindowAttributes(ps->dpy, id, &new->a)
       || IsUnviewable == new->a.map_state) {
     // Failed to get window attributes probably means the window is gone
@@ -2961,6 +3034,8 @@ add_win(session_t *ps, Window id, Window prev) {
     return false;
   }
 
+  new->transform = wid_get_transform_prop(ps, id);
+  
   // Delay window mapping
   int map_state = new->a.map_state;
   assert(IsViewable == map_state || IsUnmapped == map_state);
@@ -3440,7 +3515,7 @@ wid_get_prop_window(session_t *ps, Window wid, Atom aprop) {
  */
 static void
 win_update_focused(session_t *ps, win *w) {
-  bool focused_old = w->focused;
+  // bool focused_old = w->focused;
 
   if (UNSET != w->focused_force) {
     w->focused = w->focused_force;
@@ -4216,6 +4291,19 @@ ev_property_notify(session_t *ps, XPropertyEvent *ev) {
     win *w = NULL;
     if ((w = find_toplevel(ps, ev->window)))
       win_upd_wintype(ps, w);
+  }
+
+  // If _NET_WM_TRANSFORM changes
+  if (ev->atom == ps->atom_transform) {
+    win *w = NULL;
+    if ((w = find_win(ps, ev->window))) {
+      w->transform = wid_get_transform_prop(ps, w->id);
+      add_damage_win(ps, w);
+      calc_win_size(ps, w);
+      add_damage_win(ps, w);
+      win_on_factor_change(ps, w);
+      w->flags |= WFLAG_TRANSFORM_CHANGE;
+    }
   }
 
   // If _NET_WM_OPACITY changes
@@ -6124,6 +6212,7 @@ get_cfg(session_t *ps, int argc, char *const *argv, bool first_pass) {
  */
 static void
 init_atoms(session_t *ps) {
+  ps->atom_transform = get_atom(ps, "_NET_WM_WINDOW_TRANSFORM");
   ps->atom_opacity = get_atom(ps, "_NET_WM_WINDOW_OPACITY");
   ps->atom_frame_extents = get_atom(ps, "_NET_FRAME_EXTENTS");
   ps->atom_client = get_atom(ps, "WM_STATE");
@@ -6599,6 +6688,8 @@ init_filters(session_t *ps) {
             return false;
         }
 #endif
+      default:
+	abort();
     }
   }
 
@@ -7114,6 +7205,7 @@ session_init(session_t *ps_old, int argc, char **argv) {
     .dbe_exists = false,
     .xrfilter_convolution_exists = false,
 
+    .atom_transform = None,
     .atom_opacity = None,
     .atom_frame_extents = None,
     .atom_client = None,

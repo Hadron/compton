@@ -579,7 +579,7 @@ glx_update_fbconfig_bydepth(session_t *ps, int depth, glx_fbconfig_t *pfbcfg) {
   // Compare new FBConfig with current one
   if (glx_cmp_fbconfig(ps, ps->psglx->fbconfigs[depth], pfbcfg) < 0) {
 #ifdef DEBUG_GLX
-    printf_dbgf("(%d): %#x overrides %#x, target %#x.\n", depth, (unsigned) pfbcfg->cfg, (ps->psglx->fbconfigs[depth] ? (unsigned) ps->psglx->fbconfigs[depth]->cfg: 0), pfbcfg->texture_tgts);
+    printf_dbgf("(%d): %p overrides %p, target %d.\n", depth, pfbcfg->cfg, (ps->psglx->fbconfigs[depth] ? ps->psglx->fbconfigs[depth]->cfg: 0), pfbcfg->texture_tgts);
 #endif
     if (!ps->psglx->fbconfigs[depth]) {
       ps->psglx->fbconfigs[depth] = malloc(sizeof(glx_fbconfig_t));
@@ -677,9 +677,9 @@ glx_update_fbconfig(session_t *ps) {
   }
 
 #ifdef DEBUG_GLX
-  printf_dbgf("(): %d-bit: %#3x, 32-bit: %#3x\n",
-      ps->depth, (int) ps->psglx->fbconfigs[ps->depth]->cfg,
-      (int) ps->psglx->fbconfigs[32]->cfg);
+  printf_dbgf("(): %d-bit: %p, 32-bit: %p\n",
+      ps->depth, ps->psglx->fbconfigs[ps->depth]->cfg,
+      ps->psglx->fbconfigs[32]->cfg);
 #endif
 
   return true;
@@ -1423,7 +1423,7 @@ glx_dim_dst(session_t *ps, int dx, int dy, int width, int height, float z,
  * @brief Render a region with texture data.
  */
 bool
-glx_render_(session_t *ps, const glx_texture_t *ptex,
+glx_render_(session_t *ps, const win *w, const glx_texture_t *ptex,
     int x, int y, int dx, int dy, int width, int height, int z,
     double opacity, bool argb, bool neg,
     XserverRegion reg_tgt, const reg_data_t *pcache_reg
@@ -1585,10 +1585,19 @@ glx_render_(session_t *ps, const glx_texture_t *ptex,
         rxe = rxe / ptex->width;
         rye = rye / ptex->height;
       }
+
       GLint rdx = crect.x;
       GLint rdy = ps->root_height - crect.y;
       GLint rdxe = rdx + crect.width;
       GLint rdye = rdy - crect.height;
+
+      if (w != NULL) {
+	double xscale = w->transform.data[0][0];
+	printf("SCALE: %lf\n", xscale);
+	xscale = 1.0;
+	rdxe = rdx + (crect.width * (1/xscale));
+	rdye = rdy - (crect.height * (1/xscale));
+      }
 
       // Invert Y if needed, this may not work as expected, though. I don't
       // have such a FBConfig to test with.
@@ -1648,6 +1657,7 @@ glx_render_(session_t *ps, const glx_texture_t *ptex,
   return true;
 }
 
+#if 0
 /**
  * Render a region with color.
  */
@@ -1721,6 +1731,7 @@ glx_render_dots(session_t *ps, int dx, int dy, int width, int height, int z,
 
   glx_check_err(ps);
 }
+#endif /* 0 */
 
 /**
  * Swap buffer with glXCopySubBufferMESA().
