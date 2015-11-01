@@ -1573,10 +1573,16 @@ glx_render_(session_t *ps, const win *w, const glx_texture_t *ptex,
   {
     P_PAINTREG_START();
     {
+      double iscale = 1.0;
+      double oscale = 1.0;
+      if (w != NULL) {
+	iscale = w->transform.data[0][0];
+      }
+
       GLfloat rx = (double) (crect.x - dx + x);
       GLfloat ry = (double) (crect.y - dy + y);
-      GLfloat rxe = rx + (double) crect.width;
-      GLfloat rye = ry + (double) crect.height;
+      GLfloat rxe = rx + (double) (crect.width * iscale);
+      GLfloat rye = ry + (double) (crect.height * iscale);
       // Rectangle textures have [0-w] [0-h] while 2D texture has [0-1] [0-1]
       // Thanks to amonakov for pointing out!
       if (GL_TEXTURE_2D == ptex->target) {
@@ -1588,16 +1594,8 @@ glx_render_(session_t *ps, const win *w, const glx_texture_t *ptex,
 
       GLint rdx = crect.x;
       GLint rdy = ps->root_height - crect.y;
-      GLint rdxe = rdx + crect.width;
-      GLint rdye = rdy - crect.height;
-
-      if (w != NULL) {
-	double xscale = w->transform.data[0][0];
-	printf("SCALE: %lf\n", xscale);
-	xscale = 1.0;
-	rdxe = rdx + (crect.width * (1/xscale));
-	rdye = rdy - (crect.height * (1/xscale));
-      }
+      GLint rdxe = rdx + (crect.width * oscale);
+      GLint rdye = rdy - (crect.height * oscale);
 
       // Invert Y if needed, this may not work as expected, though. I don't
       // have such a FBConfig to test with.

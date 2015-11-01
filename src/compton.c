@@ -1149,16 +1149,6 @@ paint_preprocess(session_t *ps, win *list) {
       to_paint = false;
 
     if (WFLAG_TRANSFORM_CHANGE & w->flags) {
-      XConfigureEvent ce = {
-	.window = w->id,
-	.x = w->a.x + 1,
-	.y = w->a.y,
-	.width = w->a.width,
-	.height = w->a.height,
-	.border_width = w->a.border_width,
-	.override_redirect = w->a.override_redirect
-      };
-      configure_win(ps, &ce);
     }
 
     // to_paint will never change afterward
@@ -4295,14 +4285,32 @@ ev_property_notify(session_t *ps, XPropertyEvent *ev) {
 
   // If _NET_WM_TRANSFORM changes
   if (ev->atom == ps->atom_transform) {
+
     win *w = NULL;
     if ((w = find_win(ps, ev->window))) {
-      w->transform = wid_get_transform_prop(ps, w->id);
+      if (w->extents) {
+	add_damage(ps, w->extents);
+	w->extents = None;
+      }
       add_damage_win(ps, w);
+      w->transform = wid_get_transform_prop(ps, w->id);
+      w->extents = win_extents(ps, w);
+      win_set_shadow(ps, w, true);
+      win_set_shadow(ps, w, false);
       calc_win_size(ps, w);
       add_damage_win(ps, w);
-      win_on_factor_change(ps, w);
       w->flags |= WFLAG_TRANSFORM_CHANGE;
+
+      XConfigureEvent ce = {
+	.window = w->id,
+	.x = w->a.x + 1,
+	.y = w->a.y,
+	.width = w->a.width,
+	.height = w->a.height,
+	.border_width = w->a.border_width,
+	.override_redirect = w->a.override_redirect
+      };
+      configure_win(ps, &ce);
     }
   }
 
