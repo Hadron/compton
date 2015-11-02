@@ -1,4 +1,4 @@
-compton (0.1~beta2+kdienes1-1) unstable; urgency=medium
+compton (0.1+kdienes1-1) unstable; urgency=medium
 
   * Add compositing transforms.
 
