@@ -1,3 +1,9 @@
+compton (0.1~beta2+kdienes1-1) unstable; urgency=medium
+
+  * Add compositing transforms.
+
+ -- Klee Dienes <klee@debian.org>  Mon, 02 Nov 2015 09:06:33 -0500
+
 compton (0.1~beta2-1) unstable; urgency=low
 
   * New upstream release, 0.1~beta2.
