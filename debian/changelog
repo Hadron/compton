@@ -1,3 +1,9 @@
+compton (0.1+kdienes1-2) unstable; urgency=medium
+
+  * Fix compositing transform clipping.
+
+ -- Klee Dienes <klee@debian.org>  Fri, 15 Jul 2016 01:23:58 -0400
+
 compton (0.1+kdienes1-1) unstable; urgency=medium
 
   * Add compositing transforms.

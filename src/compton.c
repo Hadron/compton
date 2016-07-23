@@ -1141,7 +1141,7 @@ paint_preprocess(session_t *ps, win *list) {
     // pixmap is gone (for example due to a ConfigureNotify), or when it's
     // excluded
     if (!w->damaged
-        || w->a.x + w->a.width < 1 || w->a.y + w->a.height < 1
+        // || w->a.x + w->a.width < 1 || w->a.y + w->a.height < 1
         || w->a.x >= ps->root_width || w->a.y >= ps->root_height
         || ((IsUnmapped == w->a.map_state || w->destroyed) && !w->paint.pixmap)
         || get_alpha_pict_o(ps, w->opacity) == ps->alpha_picts[0]
