@@ -108,10 +108,10 @@ endif
 COMPTON_VERSION ?= git-$(shell git describe --always --dirty)-$(shell git log -1 --date=short --pretty=format:%cd)
 CFG += -DCOMPTON_VERSION="\"$(COMPTON_VERSION)\""
 
-LDFLAGS ?= -Wl,-O1 -Wl,--as-needed
+LDFLAGS ?= -g -Wl,-O0 -Wl,--as-needed
 
 ifeq "$(CFG_DEV)" ""
-  CFLAGS ?= -DNDEBUG -O2 -D_FORTIFY_SOURCE=2
+  CFLAGS ?= -g -O0 -D_FORTIFY_SOURCE=2
 else
   CC = clang
   export LD_ALTEXEC = /usr/bin/ld.gold
